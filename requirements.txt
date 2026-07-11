@@ -1,0 +1,5 @@
+numpy
+PyYAML
+torch>=2.1
+matplotlib
+jupyter
