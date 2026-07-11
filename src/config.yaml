@@ -2,8 +2,8 @@
 grid:
   length_x_km: 3000.0
   length_y_km: 3000.0
-  spacing_x_km: 10.0
-  spacing_y_km: 10.0
+  spacing_x_km: 3.0
+  spacing_y_km: 3.0
 
 # Constant-depth shallow-water system
 physics:
@@ -19,15 +19,15 @@ vortex:
 # amplitude_factor * maximum_wind_m_s ** 2 and is converted to metres by g.
 initial_condition:
   amplitude_factor: 0.1
-  ring_width_km: 20.0
+  ring_width_km: 10.0
 
 time:
-  time_step_s: 90.0
+  time_step_s: 10.0
   end_time_s: 259200.0       # 3 days
 
 sponge:
   width_km: 250.0
-  damping_timescale_s: 3600.0
+  damping_timescale_s: 1800.0
 
 diagnostics:
   water_density_kg_m3: 1000.0
