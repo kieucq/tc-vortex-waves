@@ -111,6 +111,30 @@ def spectral_dy(field: Array, grid: SpectralGrid) -> Array:
     return np.fft.ifft2(1j * grid.KY * transformed).real
 
 
+def update_base_state(
+    initial_base: RankineBaseState,
+    eta: Array,
+    u: Array,
+    v: Array,
+    grid: SpectralGrid,
+) -> RankineBaseState:
+    """Build the RHS background from the initial base plus the perturbation.
+
+    The perturbation is retained. Velocity gradients are rebuilt from the
+    analytic initial-base gradients plus spectral perturbation gradients.
+    """
+    return RankineBaseState(
+        u=initial_base.u + u,
+        v=initial_base.v + v,
+        h=initial_base.h + eta,
+        eta=initial_base.eta + eta,
+        u_x=initial_base.u_x + spectral_dx(u, grid),
+        u_y=initial_base.u_y + spectral_dy(u, grid),
+        v_x=initial_base.v_x + spectral_dx(v, grid),
+        v_y=initial_base.v_y + spectral_dy(v, grid),
+    )
+
+
 def make_rankine_base(
     grid: SpectralGrid,
     maximum_wind: float,
@@ -349,6 +373,7 @@ def compute_power_flux(
     gravity: float,
     circle_points: int,
     grid: SpectralGrid,
+    H: float,
 ) -> float:
     """Compute signed outward perturbation power through a circle."""
     theta = np.linspace(0.0, 2.0 * np.pi, circle_points, endpoint=False)
@@ -358,8 +383,21 @@ def compute_power_flux(
     u_circle = bilinear_sample(u, x_circle, y_circle, grid)
     v_circle = bilinear_sample(v, x_circle, y_circle, grid)
     radial_velocity = u_circle * np.cos(theta) + v_circle * np.sin(theta)
-    radial_flux = density * gravity * eta_circle * radial_velocity
+    radial_flux = density * gravity * eta_circle * radial_velocity * H
     return float(radius * np.trapz(radial_flux, theta))
+
+
+def compute_total_energy(
+    eta: Array,
+    u: Array,
+    v: Array,
+    gravity: float,
+    mean_depth: float,
+) -> float:
+    """Sum kinetic and gravitational energy over all grid points."""
+    depth = eta + mean_depth
+    energy = (0.5 * u**2 + 0.5 * v**2 + 0.5 * gravity * depth) * depth
+    return float(np.sum(energy, dtype=np.float64))
 
 
 def save_snapshot(
@@ -399,6 +437,21 @@ def write_power_timeseries(
         )
 
 
+def write_total_energy_row(
+    path: Path,
+    time_s: float,
+    total_energy: float,
+    write_header: bool = False,
+) -> None:
+    """Write one energy row immediately so progress survives interrupted runs."""
+    mode = "w" if write_header else "a"
+    with path.open(mode, newline="", encoding="utf-8") as stream:
+        writer = csv.writer(stream)
+        if write_header:
+            writer.writerow(["time_s", "total_energy"])
+        writer.writerow([f"{time_s:.6f}", f"{total_energy:.12e}"])
+
+
 def resolve_output_directory(
     output_value: str, config_directory: Path
 ) -> Path:
@@ -423,6 +476,9 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
 
     gravity = float(physics["gravity_m_s2"])
     mean_depth = float(physics["mean_depth_m"])
+    base_update = physics.get("base_update", False)
+    if not isinstance(base_update, bool):
+        raise ValueError("physics.base_update must be true or false.")
     maximum_wind = float(vortex["maximum_wind_m_s"])
     vortex_radius = float(vortex["radius_km"]) * 1000.0
     dt = float(time_config["time_step_s"])
@@ -446,9 +502,10 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
             "power_radius_km must be smaller than half the shortest domain."
         )
 
-    base = make_rankine_base(
+    initial_base = make_rankine_base(
         grid, maximum_wind, vortex_radius, gravity, mean_depth
     )
+    base = initial_base
     dynamic_height = float(initial["amplitude_factor"]) * maximum_wind**2
     eta, u, v = make_initial_perturbation(
         grid,
@@ -462,24 +519,39 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
         float(sponge_config["width_km"]) * 1000.0,
         float(sponge_config["damping_timescale_s"]),
     )
+    if base_update:
+        base = update_base_state(initial_base, eta, u, v, grid)
 
     output_dir = resolve_output_directory(
         str(output["directory"]), Path(config_directory)
     )
     snapshot_dir = output_dir / "snapshots"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
-    density = float(diagnostics["water_density_kg_m3"])
+    energy_path = output_dir / "total_energy_timeseries.csv"
+    density = float(diagnostics["air_density_kg_m3"])
     circle_points = int(diagnostics["power_circle_points"])
     if circle_points < 4:
         raise ValueError("power_circle_points must be at least 4.")
 
     save_snapshot(
-        snapshot_dir, 0, 0.0, base.u + u, base.v + v, base.h + eta, grid
+        snapshot_dir,
+        0,
+        0.0,
+        initial_base.u + u,
+        initial_base.v + v,
+        initial_base.h + eta,
+        grid,
     )
     power = compute_power_flux(
-        eta, u, v, power_radius, density, gravity, circle_points, grid
+        eta, u, v, power_radius, density, gravity, circle_points, grid, mean_depth
     )
     power_rows = [(0.0, power)]
+    total_energy = compute_total_energy(
+        base.eta, base.u, base.v, gravity, mean_depth
+    )
+    write_total_energy_row(
+        energy_path, 0.0, total_energy, write_header=True
+    )
     print(f"Grid: {grid.nx} x {grid.ny}, dx = {grid.dx / 1000:.1f} km")
     print(
         f"Domain: {grid.length_x / 1000:.0f} km x "
@@ -488,7 +560,9 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
     print(f"Time step: {dt:.1f} s, total steps: {nsteps}")
     print(f"Snapshot output every {output_stride} steps")
     print(f"Power radius: {power_radius / 1000:.1f} km")
+    print(f"Dynamic RHS base update: {'enabled' if base_update else 'disabled'}")
     print(f"Initial power flux: {power:.6e} W")
+    print(f"step = 0, t = 0.000 h, total energy = {total_energy:.12e}")
 
     rhs: RhsFunction = lambda ee, uu, vv: rhs_explicit(
         ee, uu, vv, base, sponge, grid
@@ -508,26 +582,35 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
             )
 
         time_s = step * dt
+        if base_update:
+            base = update_base_state(initial_base, eta, u, v, grid)
+        total_energy = compute_total_energy(
+            base.eta, base.u, base.v, gravity, mean_depth
+        )
+
         if step % output_stride == 0 or step == nsteps:
             save_snapshot(
                 snapshot_dir,
                 step,
                 time_s,
-                base.u + u,
-                base.v + v,
-                base.h + eta,
+                initial_base.u + u,
+                initial_base.v + v,
+                initial_base.h + eta,
                 grid,
             )
             power = compute_power_flux(
-                eta, u, v, power_radius, density, gravity, circle_points, grid
+                eta, u, v, power_radius, density, gravity, circle_points, grid, mean_depth
             )
             power_rows.append((time_s, power))
+            write_total_energy_row(energy_path, time_s, total_energy)
             print(
                 f"t = {time_s / 3600:.1f} h, "
-                f"power flux = {power:.6e} W"
+                f"power flux = {power:.6e} W, "
+                f"total energy = {total_energy:.12e} J"
             )
 
     power_path = output_dir / "power_flux_timeseries.csv"
     write_power_timeseries(power_path, power_rows)
     print(f"Saved snapshots to: {snapshot_dir}")
     print(f"Saved power time series to: {power_path}")
+    print(f"Saved total energy time series to: {energy_path}")

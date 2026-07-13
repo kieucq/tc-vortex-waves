@@ -1,0 +1,41 @@
+This is output for pertubation amplitude = 0 to make sure the code can 
+maintain the initial Rankine balance vortex
+
+Torch backend: device=cuda:0, dtype=torch.float32, ranks=2
+Grid: 300 x 300, dx = 10.0 km
+Time step: 10.0 s, total steps: 25920
+Dynamic RHS base update: enabled
+Initial power flux: 0.000000e+00 W
+step = 0, t = 0.000 h, total energy = 1.103576537498e+13
+t = 1.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 2.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 3.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 4.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 5.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 6.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 7.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 8.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 9.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 10.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 11.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 12.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 13.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 14.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 15.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 16.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 17.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 18.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 19.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 20.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 21.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 22.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 23.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 24.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 25.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 26.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 27.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 28.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 29.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 30.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 31.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J
+t = 32.0 h, power flux = 0.000000e+00 W, total energy = 1.103576537498e+13 J

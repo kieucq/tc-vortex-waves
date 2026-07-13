@@ -1,2 +1,5 @@
 archive
 outputs
+src/slurm*
+src/__pycache__
+plots/.ipynb_checkpoints

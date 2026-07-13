@@ -57,7 +57,7 @@ if __name__ == "__main__":
             )
         run_model(configuration, configuration_path.parent)
     else:
-        from mod_spectral_torch import run_torch_model
+        from mod_spectral_ddp import run_torch_model
 
         run_torch_model(
             configuration,

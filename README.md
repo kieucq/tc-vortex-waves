@@ -30,6 +30,7 @@ configured circular contour as a CSV time series.
 │   └── tc_gravity_waves.py      # Command-line entry point
 ├── outputs/                     # Created at run time
 │   ├── power_flux_timeseries.csv
+│   ├── total_energy_timeseries.csv
 │   └── snapshots/*.npz
 ├── requirements.txt
 └── README.md

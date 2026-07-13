@@ -2,13 +2,16 @@
 grid:
   length_x_km: 3000.0
   length_y_km: 3000.0
-  spacing_x_km: 3.0
-  spacing_y_km: 3.0
+  spacing_x_km: 10.0
+  spacing_y_km: 10.0
 
-# Constant-depth shallow-water system
+# Constant-depth shallow-water system. Note that if base_update=True
+# each step's RHS uses initial_base + the current perturbation.
+# Snapshot output always output full field initial_base + perturbation.
 physics:
   mean_depth_m: 5000.0
   gravity_m_s2: 9.81
+  base_update: True
 
 # Balanced Rankine vortex
 vortex:
@@ -16,9 +19,10 @@ vortex:
   radius_km: 50.0
 
 # Gaussian height ring. Its dynamic-height amplitude is
-# amplitude_factor * maximum_wind_m_s ** 2 and is converted to metres by g.
+# amplitude_factor*maximum_wind_m_s**2 and is converted to metres by g.
+# The full amplitude should be  << V**2/2g at r = R.
 initial_condition:
-  amplitude_factor: 0.1
+  amplitude_factor: 0.0
   ring_width_km: 10.0
 
 time:
@@ -30,13 +34,13 @@ sponge:
   damping_timescale_s: 1800.0
 
 diagnostics:
-  water_density_kg_m3: 1000.0
+  air_density_kg_m3: 1.0
   power_radius_km: 1350.0
   power_circle_points: 720
 
 numerics:
   spectral_filter_enabled: true
-  spectral_filter_fraction: 0.6666666666666666
+  spectral_filter_fraction: 0.67
 
 # Execution backend. Command-line options can override these values.
 compute:
