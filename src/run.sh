@@ -9,9 +9,29 @@
 #SBATCH --mem=256G
 conda deactivate
 module load python/gpu/3.12.5
-cd /N/u/ckieu/BigRed200/codex/vortex-waves/
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+set -euo pipefail
 set -x
+#nvidia-smi
 
-nvidia-smi
+CONFIG_FILE="$SCRIPT_DIR/config.yaml"
+MODEL_SCRIPT="$SCRIPT_DIR/tc_gravity_waves.py"
 
-torchrun --standalone --nproc-per-node=2 src/tc_gravity_waves.py --backend torch --device cuda --dtype float32 --ddp
+ddp="no"
+maximum_wind_values=(30 40 50 60)
+radius_values=(30 40 50 60 70 80 90 100)
+
+for maximum_wind in "${maximum_wind_values[@]}"; do
+    for radius_km in "${radius_values[@]}"; do
+        sed -i -E "s/^([[:space:]]*maximum_wind_m_s:)[[:space:]].*$/\1 ${maximum_wind}.0/" "$CONFIG_FILE"
+        sed -i -E "s/^([[:space:]]*radius_km:)[[:space:]].*$/\1 ${radius_km}.0/" "$CONFIG_FILE"
+
+        echo "Running maximum_wind_m_s=${maximum_wind}.0, radius_km=${radius_km}.0"
+        if [ "$ddp" -eq "yes" ]; then
+            torchrun --standalone --nproc-per-node=2 src/tc_gravity_waves.py --backend torch --device cuda --dtype float32 --ddp
+        else
+            python "$MODEL_SCRIPT" --config "$CONFIG_FILE"
+        fi 
+    done
+done

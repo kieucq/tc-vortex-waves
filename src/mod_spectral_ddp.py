@@ -602,7 +602,7 @@ def _run_torch_model(
                 power_rows.append((time_s, power))
                 write_total_energy_row(energy_path, time_s, total_energy)
                 print(
-                    f"t = {time_s / 3600:.1f} h, "
+                    f"t = {time_s / 3600:.3f} h, "
                     f"power flux = {power:.6e} W, "
                     f"total energy = {total_energy:.12e} J"
                 )

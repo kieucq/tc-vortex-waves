@@ -1,1 +1,55 @@
-config.yaml_02h
+# Spatial grid (kilometres)
+grid:
+  length_x_km: 3000.0
+  length_y_km: 3000.0
+  spacing_x_km: 10.0
+  spacing_y_km: 10.0
+
+# Constant-depth shallow-water system. Note that if base_update=True
+# each step's RHS uses initial_base + the current perturbation.
+# Snapshot output always output full field initial_base + perturbation.
+physics:
+  mean_depth_m: 5000.0
+  gravity_m_s2: 9.81
+  base_update: True
+
+# Balanced Rankine vortex
+vortex:
+  maximum_wind_m_s: 60.0
+  radius_km: 100.0
+
+# Gaussian height ring. Its dynamic-height amplitude is
+# amplitude_factor*maximum_wind_m_s**2 and is converted to metres by g.
+# The full amplitude should be  << V**2/2g at r = R.
+initial_condition:
+  amplitude_factor: 0.001
+  ring_width_km: 10.0
+
+time:
+  time_step_s: 10.0
+  end_time_s: 7200.0      # 2 hours
+
+sponge:
+  width_km: 250.0
+  damping_timescale_s: 1800.0
+
+diagnostics:
+  air_density_kg_m3: 1.0
+  power_radius_km: 900.0
+  power_circle_points: 720
+
+numerics:
+  spectral_filter_enabled: true
+  spectral_filter_fraction: 0.67
+
+# Execution backend. Command-line options can override these values.
+compute:
+  backend: numpy              # numpy or torch
+  device: auto                # auto, cpu, or cuda
+  dtype: float64              # float32 is faster on most GPUs
+  distributed: false          # true when launching with torchrun
+
+output:
+  # Relative paths are resolved from this configuration file.
+  directory: ../outputs
+  snapshot_interval_s: 180.0

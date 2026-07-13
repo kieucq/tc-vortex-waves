@@ -15,7 +15,7 @@ physics:
 
 # Balanced Rankine vortex
 vortex:
-  maximum_wind_m_s: 50.0
+  maximum_wind_m_s: 40.0
   radius_km: 50.0
 
 # Gaussian height ring. Its dynamic-height amplitude is
