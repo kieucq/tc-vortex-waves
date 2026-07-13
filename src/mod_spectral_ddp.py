@@ -442,7 +442,8 @@ def _run_torch_model(
     if not isinstance(base_update, bool):
         raise ValueError("physics.base_update must be true or false.")
     maximum_wind = float(vortex["maximum_wind_m_s"])
-    vortex_radius = float(vortex["radius_km"]) * 1000
+    vortex_radius_km = float(vortex["radius_km"])
+    vortex_radius = vortex_radius_km * 1000
     dt = float(time_config["time_step_s"])
     end_time = float(time_config["end_time_s"])
     snapshot_interval = float(output["snapshot_interval_s"])
@@ -612,7 +613,9 @@ def _run_torch_model(
         torch.cuda.synchronize(context.device)
     if context.is_root:
         elapsed = time.perf_counter() - start_time
-        power_path = output_dir / "power_flux_timeseries.csv"
+        power_path = output_dir / (
+            f"power_flux_timeseries_{maximum_wind}_{vortex_radius_km}.csv"
+        )
         write_power_timeseries(power_path, power_rows)
         print(f"Elapsed integration time: {elapsed:.2f} s")
         print(f"Saved snapshots to: {snapshot_dir}")

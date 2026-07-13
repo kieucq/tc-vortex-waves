@@ -29,7 +29,7 @@ configured circular contour as a CSV time series.
 │   ├── mod_spectral_torch.py    # PyTorch and distributed FFT backend
 │   └── tc_gravity_waves.py      # Command-line entry point
 ├── outputs/                     # Created at run time
-│   ├── power_flux_timeseries.csv
+│   ├── power_flux_timeseries_<maximum_wind_m_s>_<radius_km>.csv
 │   ├── total_energy_timeseries.csv
 │   └── snapshots/*.npz
 ├── requirements.txt
