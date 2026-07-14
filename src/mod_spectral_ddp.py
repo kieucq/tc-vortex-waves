@@ -6,26 +6,22 @@ sum the completed fields with torch.distributed collectives.
 """
 
 from __future__ import annotations
-
 import math
 import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
-
 import numpy as np
 import torch
 import torch.distributed as dist
-
+from mod_bnd import make_sponge
+from mod_ini import make_initial_ring_perturbation, make_rankine_base
 from mod_spectral import (
     RankineBaseState,
     SpectralGrid,
     build_grid,
     compute_power_flux,
-    make_initial_perturbation,
-    make_rankine_base,
-    make_sponge,
     resolve_output_directory,
     save_snapshot,
     write_total_energy_row,
@@ -446,6 +442,7 @@ def _run_torch_model(
     vortex_radius = vortex_radius_km * 1000
     dt = float(time_config["time_step_s"])
     end_time = float(time_config["end_time_s"])
+    expName = str(output["outname"])
     snapshot_interval = float(output["snapshot_interval_s"])
     nsteps = int(round(end_time / dt))
     output_stride = int(round(snapshot_interval / dt))
@@ -469,7 +466,7 @@ def _run_torch_model(
         grid_np, maximum_wind, vortex_radius, gravity, mean_depth
     )
     dynamic_height = float(initial["amplitude_factor"]) * maximum_wind**2
-    eta_np, u_np, v_np = make_initial_perturbation(
+    eta_np, u_np, v_np = make_initial_ring_perturbation(
         grid_np,
         vortex_radius,
         float(initial["ring_width_km"]) * 1000,
@@ -614,7 +611,7 @@ def _run_torch_model(
     if context.is_root:
         elapsed = time.perf_counter() - start_time
         power_path = output_dir / (
-            f"power_flux_timeseries_{maximum_wind}_{vortex_radius_km}.csv"
+            f"f{expName}_{maximum_wind}_{vortex_radius_km}.csv"
         )
         write_power_timeseries(power_path, power_rows)
         print(f"Elapsed integration time: {elapsed:.2f} s")

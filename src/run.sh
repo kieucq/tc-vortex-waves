@@ -28,7 +28,7 @@ for maximum_wind in "${maximum_wind_values[@]}"; do
         sed -i -E "s/^([[:space:]]*radius_km:)[[:space:]].*$/\1 ${radius_km}.0/" "$CONFIG_FILE"
 
         echo "Running maximum_wind_m_s=${maximum_wind}.0, radius_km=${radius_km}.0"
-        if [ "$ddp" -eq "yes" ]; then
+        if [ "$ddp" == "yes" ]; then
             torchrun --standalone --nproc-per-node=2 src/tc_gravity_waves.py --backend torch --device cuda --dtype float32 --ddp
         else
             python "$MODEL_SCRIPT" --config "$CONFIG_FILE"

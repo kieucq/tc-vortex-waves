@@ -1,14 +1,13 @@
 """Numerical routines for the pseudo-spectral TC gravity-wave model."""
-
 from __future__ import annotations
-
 import csv
 import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
-
 import numpy as np
+from mod_bnd import make_sponge
+from mod_ini import make_initial_ring_perturbation, make_rankine_base
 
 Array = np.ndarray
 State = tuple[Array, Array, Array]
@@ -133,87 +132,6 @@ def update_base_state(
         v_x=initial_base.v_x + spectral_dx(v, grid),
         v_y=initial_base.v_y + spectral_dy(v, grid),
     )
-
-
-def make_rankine_base(
-    grid: SpectralGrid,
-    maximum_wind: float,
-    radius: float,
-    gravity: float,
-    mean_depth: float,
-) -> RankineBaseState:
-    """Construct a balanced Rankine vortex in Cartesian coordinates."""
-    if radius <= 0.0 or gravity <= 0.0 or mean_depth <= 0.0:
-        raise ValueError("Vortex radius, gravity, and mean depth must be positive.")
-    X, Y = grid.X, grid.Y
-    r = np.sqrt(X**2 + Y**2)
-    r_safe = np.maximum(r, 1.0e-12)
-    u_theta = np.where(
-        r <= radius,
-        maximum_wind * r / radius,
-        maximum_wind * radius / r_safe,
-    )
-    u = -u_theta * Y / r_safe
-    v = u_theta * X / r_safe
-    eta = np.where(
-        r <= radius,
-        -(maximum_wind**2 / gravity) * (1.0 - 0.5 * (r / radius) ** 2),
-        -(maximum_wind**2 * radius**2) / (2.0 * gravity * r_safe**2),
-    )
-    h = mean_depth + eta
-
-    u_x = np.zeros_like(X)
-    u_y = np.zeros_like(X)
-    v_x = np.zeros_like(X)
-    v_y = np.zeros_like(X)
-    inside = r <= radius
-    outside = ~inside
-    u_y[inside] = -maximum_wind / radius
-    v_x[inside] = maximum_wind / radius
-
-    scale = maximum_wind * radius
-    r4 = r_safe**4
-    u_x[outside] = 2.0 * scale * X[outside] * Y[outside] / r4[outside]
-    u_y[outside] = -scale * (X[outside]**2 - Y[outside]**2) / r4[outside]
-    v_x[outside] = scale * (Y[outside]**2 - X[outside]**2) / r4[outside]
-    v_y[outside] = -2.0 * scale * X[outside] * Y[outside] / r4[outside]
-    return RankineBaseState(u, v, h, eta, u_x, u_y, v_x, v_y)
-
-
-def make_initial_perturbation(
-    grid: SpectralGrid,
-    radius: float,
-    ring_width: float,
-    dynamic_height_amplitude: float,
-    gravity: float,
-) -> State:
-    """Create a Gaussian free-surface ring with zero initial velocity."""
-    if ring_width <= 0.0:
-        raise ValueError("Initial-condition ring width must be positive.")
-    r = np.sqrt(grid.X**2 + grid.Y**2)
-    eta_amplitude = dynamic_height_amplitude / gravity
-    eta = eta_amplitude * np.exp(-((r - radius) ** 2) / (2.0 * ring_width**2))
-    return eta, np.zeros_like(eta), np.zeros_like(eta)
-
-
-def make_sponge(
-    grid: SpectralGrid,
-    sponge_width: float,
-    damping_timescale: float,
-) -> Array:
-    """Create a quadratic damping coefficient near all four boundaries."""
-    if sponge_width <= 0.0 or damping_timescale <= 0.0:
-        raise ValueError("Sponge width and damping timescale must be positive.")
-    if sponge_width >= 0.5 * min(grid.length_x, grid.length_y):
-        raise ValueError("Sponge width must be smaller than half the domain.")
-    dist_to_edge = np.minimum.reduce([
-        grid.X + 0.5 * grid.length_x,
-        0.5 * grid.length_x - grid.X,
-        grid.Y + 0.5 * grid.length_y,
-        0.5 * grid.length_y - grid.Y,
-    ])
-    ramp = np.clip((sponge_width - dist_to_edge) / sponge_width, 0.0, 1.0)
-    return ramp**2 / damping_timescale
 
 
 def rk4_step(
@@ -484,6 +402,7 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
     vortex_radius = vortex_radius_km * 1000.0
     dt = float(time_config["time_step_s"])
     end_time = float(time_config["end_time_s"])
+    expName = str(output["outname"])
     snapshot_interval = float(output["snapshot_interval_s"])
     if min(dt, end_time, snapshot_interval) <= 0.0:
         raise ValueError("Time step, end time, and output interval must be positive.")
@@ -508,7 +427,7 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
     )
     base = initial_base
     dynamic_height = float(initial["amplitude_factor"]) * maximum_wind**2
-    eta, u, v = make_initial_perturbation(
+    eta, u, v = make_initial_ring_perturbation(
         grid,
         vortex_radius,
         float(initial["ring_width_km"]) * 1000.0,
@@ -611,7 +530,7 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
             )
 
     power_path = output_dir / (
-        f"power_flux_timeseries_{maximum_wind}_{vortex_radius_km}.csv"
+        f"{expName}_{maximum_wind}_{vortex_radius_km}.csv"
     )
     write_power_timeseries(power_path, power_rows)
     print(f"Saved snapshots to: {snapshot_dir}")

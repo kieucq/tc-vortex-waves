@@ -22,8 +22,12 @@ vortex:
 # amplitude_factor*maximum_wind_m_s**2 and is converted to metres by g.
 # The full amplitude should be  << V**2/2g at r = R.
 initial_condition:
+  mode: "ring" # "ring" or "vht"
   amplitude_factor: 0.001
   ring_width_km: 10.0
+  location_x: 100, 200, 100, 200,
+  location_y: 100, 200, 200, 100,
+  time_to_add:  0,   0,   0,   0,
 
 time:
   time_step_s: 10.0
@@ -35,7 +39,7 @@ sponge:
 
 diagnostics:
   air_density_kg_m3: 1.0
-  power_radius_km: 900.0
+  power_radius_km: 180.0
   power_circle_points: 720
 
 numerics:
@@ -49,7 +53,9 @@ compute:
   dtype: float64              # float32 is faster on most GPUs
   distributed: false          # true when launching with torchrun
 
+# Relative paths are resolved from this configuration file and set 
+# output filename for each experiment.
 output:
-  # Relative paths are resolved from this configuration file.
   directory: ../outputs
-  snapshot_interval_s: 180.0
+  snapshot_interval_s: 30.0
+  outname: "power_flux_timeseries_r180"
