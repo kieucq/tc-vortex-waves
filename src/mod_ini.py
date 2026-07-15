@@ -28,18 +28,20 @@ def make_initial_ring_perturbation(
 
 
 def make_initial_vht_perturbation(
+    model_time: float,
     perturbation_magnitude: float,
     perturbation_width_scale: float,
     locations: Iterable[tuple[float, float]],
+    trigger_times: Iterable[float],
     grid: SpectralGrid,
-    dx: float) -> State:
+) -> State:
     """Superpose geostrophically balanced Gaussian perturbations.
 
     ``locations`` contains the ``(x, y)`` center of each perturbation in the
     same coordinate units as the grid. ``perturbation_magnitude`` is the peak
     free-surface displacement, and ``perturbation_width_scale`` is the Gaussian
-    standard deviation in the same length units as the grid. ``dx`` is the
-    uniform grid spacing used for both finite-difference derivatives.
+    standard deviation in the same length units as the grid. A location is
+    activated only when its corresponding trigger time matches ``model_time``.
     """
     eta_amplitude = float(perturbation_magnitude)
     width_scale = float(perturbation_width_scale)
@@ -47,9 +49,15 @@ def make_initial_vht_perturbation(
         raise ValueError("Perturbation magnitude must be finite.")
     if not np.isfinite(width_scale) or width_scale <= 0.0:
         raise ValueError("Perturbation width scale must be finite and positive.")
-    grid_spacing = float(dx)
-    if not np.isfinite(grid_spacing) or grid_spacing <= 0.0:
-        raise ValueError("Grid spacing dx must be finite and positive.")
+    current_time = float(model_time)
+    if not np.isfinite(current_time):
+        raise ValueError("Model time must be finite.")
+    spacing_x = float(grid.dx)
+    spacing_y = float(grid.dy)
+    if not np.isfinite(spacing_x) or spacing_x <= 0.0:
+        raise ValueError("Grid spacing grid.dx must be finite and positive.")
+    if not np.isfinite(spacing_y) or spacing_y <= 0.0:
+        raise ValueError("Grid spacing grid.dy must be finite and positive.")
 
     centers = np.asarray(list(locations), dtype=float)
     if centers.size == 0:
@@ -60,13 +68,21 @@ def make_initial_vht_perturbation(
         raise ValueError("Locations must be an iterable of (x, y) pairs.")
     if not np.all(np.isfinite(centers)):
         raise ValueError("All perturbation locations must be finite.")
+    times = np.asarray(list(trigger_times), dtype=float)
+    if times.ndim != 1:
+        raise ValueError("Trigger times must be a one-dimensional iterable.")
+    if times.size != centers.shape[0]:
+        raise ValueError("Locations and trigger times must have the same length.")
+    if not np.all(np.isfinite(times)):
+        raise ValueError("All trigger times must be finite.")
     if grid.X.ndim != 2 or min(grid.X.shape) < 2:
         raise ValueError("The grid must contain at least two points on each axis.")
 
     total_eta = np.zeros_like(grid.X, dtype=float)
     width_squared = width_scale**2
 
-    for center_x, center_y in centers:
+    active = np.isclose(times, current_time, rtol=0.0, atol=1.0e-9)
+    for center_x, center_y in centers[active]:
         delta_x = grid.X - center_x
         delta_y = grid.Y - center_y
         radius = np.hypot(delta_x, delta_y)
@@ -76,8 +92,8 @@ def make_initial_vht_perturbation(
     edge_order = 2 if min(total_eta.shape) >= 3 else 1
     eta_y, eta_x = np.gradient(
         total_eta,
-        grid_spacing,
-        grid_spacing,
+        spacing_y,
+        spacing_x,
         edge_order=edge_order,
     )
     gravity = 9.81

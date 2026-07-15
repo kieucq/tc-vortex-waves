@@ -16,9 +16,15 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from mod_bnd import make_sponge
-from mod_ini import make_initial_ring_perturbation, make_rankine_base
+from mod_ini import (
+    make_initial_ring_perturbation,
+    make_initial_vht_perturbation,
+    make_rankine_base,
+)
 from mod_spectral import (
     RankineBaseState,
+    _is_vht_trigger_time,
+    _parse_vht_schedule,
     SpectralGrid,
     build_grid,
     compute_power_flux,
@@ -461,18 +467,37 @@ def _run_torch_model(
     circle_points = int(diagnostics["power_circle_points"])
     if circle_points < 4:
         raise ValueError("power_circle_points must be at least 4.")
+    mode = str(initial["mode"]).strip().lower()
+    if mode == "vht":
+        locations, trigger_times = _parse_vht_schedule(initial, dt, end_time)
+    elif mode == "ring":
+        locations = []
+        trigger_times = np.empty(0, dtype=float)
+    else:
+        raise ValueError("initial_condition.mode must be 'ring' or 'vht'.")
+
 
     base_np = make_rankine_base(
         grid_np, maximum_wind, vortex_radius, gravity, mean_depth
     )
     dynamic_height = float(initial["amplitude_factor"]) * maximum_wind**2
-    eta_np, u_np, v_np = make_initial_ring_perturbation(
-        grid_np,
-        vortex_radius,
-        float(initial["ring_width_km"]) * 1000,
-        dynamic_height,
-        gravity,
-    )
+    if mode == "ring":
+        eta_np, u_np, v_np = make_initial_ring_perturbation(
+            grid_np,
+            vortex_radius,
+            float(initial["ring_width_km"]) * 1000.0,
+            dynamic_height,
+            gravity,
+        )
+    else:
+        eta_np, u_np, v_np = make_initial_vht_perturbation(
+            0.0,
+            dynamic_height / gravity,
+            float(initial["ring_width_km"]) * 1000.0,
+            locations,
+            trigger_times,
+            grid_np,
+        )
     sponge_np = make_sponge(
         grid_np,
         float(sponge_config["width_km"]) * 1000,
@@ -563,6 +588,21 @@ def _run_torch_model(
                 )
 
             time_s = step * dt
+            model_time_min = time_s / 60.0
+            if mode == "vht" and _is_vht_trigger_time(
+                model_time_min, trigger_times
+            ):
+                eta_add_np, u_add_np, v_add_np = make_initial_vht_perturbation(
+                    model_time_min,
+                    dynamic_height / gravity,
+                    float(initial["ring_width_km"]) * 1000.0,
+                    locations,
+                    trigger_times,
+                    grid_np,
+                )
+                eta = eta + _tensor(eta_add_np, context, dtype)
+                u = u + _tensor(u_add_np, context, dtype)
+                v = v + _tensor(v_add_np, context, dtype)
             if base_update:
                 base = update_torch_base_state(
                     initial_base, eta, u, v, grid, context
@@ -611,7 +651,7 @@ def _run_torch_model(
     if context.is_root:
         elapsed = time.perf_counter() - start_time
         power_path = output_dir / (
-            f"f{expName}_{maximum_wind}_{vortex_radius_km}.csv"
+            f"{expName}_{maximum_wind}_{vortex_radius_km}.csv"
         )
         write_power_timeseries(power_path, power_rows)
         print(f"Elapsed integration time: {elapsed:.2f} s")

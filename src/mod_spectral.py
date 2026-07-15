@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 import numpy as np
 from mod_bnd import make_sponge
-from mod_ini import make_initial_ring_perturbation, make_rankine_base
+from mod_ini import (
+    make_initial_ring_perturbation,
+    make_initial_vht_perturbation,
+    make_rankine_base,
+)
 
 Array = np.ndarray
 State = tuple[Array, Array, Array]
@@ -380,6 +384,55 @@ def resolve_output_directory(
     return output_dir.resolve()
 
 
+def _parse_vht_schedule(
+    initial: Mapping[str, Any],
+    dt: float,
+    end_time: float,
+) -> tuple[list[tuple[float, float]], np.ndarray]:
+    """Validate VHT configuration and convert locations from km to metres."""
+    try:
+        location_x_km = np.asarray(initial["location_x"], dtype=float)
+        location_y_km = np.asarray(initial["location_y"], dtype=float)
+        trigger_times_min = np.asarray(initial["time_to_add"], dtype=float)
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(
+            "VHT mode requires numeric location_x, location_y, and time_to_add lists."
+        ) from error
+
+    arrays = (location_x_km, location_y_km, trigger_times_min)
+    if any(values.ndim != 1 for values in arrays):
+        raise ValueError("VHT locations and trigger times must be one-dimensional.")
+    if location_x_km.size == 0:
+        raise ValueError("VHT mode requires at least one perturbation location.")
+    if not (
+        location_x_km.size == location_y_km.size == trigger_times_min.size
+    ):
+        raise ValueError(
+            "VHT location_x, location_y, and time_to_add must have equal lengths."
+        )
+    if not all(np.all(np.isfinite(values)) for values in arrays):
+        raise ValueError("VHT locations and trigger times must be finite.")
+
+    trigger_times_s = 60.0 * trigger_times_min
+    if np.any(trigger_times_s < 0.0) or np.any(trigger_times_s > end_time):
+        raise ValueError("VHT trigger times must lie between 0 and end_time_s.")
+    trigger_steps = np.rint(trigger_times_s / dt)
+    if not np.allclose(trigger_steps * dt, trigger_times_s, rtol=0.0, atol=1.0e-9):
+        raise ValueError("Every VHT trigger time must align with time_step_s.")
+
+    locations = list(
+        zip(1000.0 * location_x_km, 1000.0 * location_y_km, strict=True)
+    )
+    return locations, trigger_times_min
+
+
+def _is_vht_trigger_time(model_time_min: float, trigger_times: np.ndarray) -> bool:
+    """Return whether one or more perturbations trigger at this model time."""
+    return bool(
+        np.any(np.isclose(trigger_times, model_time_min, rtol=0.0, atol=1.0e-9))
+    )
+
+
 def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
     """Build, integrate, diagnose, and save one model simulation."""
     grid = build_grid(config["grid"])
@@ -425,15 +478,35 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
     initial_base = make_rankine_base(
         grid, maximum_wind, vortex_radius, gravity, mean_depth
     )
+    mode = str(initial["mode"]).strip().lower()
+    if mode == "vht":
+        locations, trigger_times = _parse_vht_schedule(initial, dt, end_time)
+    elif mode == "ring":
+        locations = []
+        trigger_times = np.empty(0, dtype=float)
+    else:
+        raise ValueError("initial_condition.mode must be 'ring' or 'vht'.")
+
     base = initial_base
     dynamic_height = float(initial["amplitude_factor"]) * maximum_wind**2
-    eta, u, v = make_initial_ring_perturbation(
-        grid,
-        vortex_radius,
-        float(initial["ring_width_km"]) * 1000.0,
-        dynamic_height,
-        gravity,
-    )
+    if mode == "ring":
+        eta, u, v = make_initial_ring_perturbation(
+            grid,
+            vortex_radius,
+            float(initial["ring_width_km"]) * 1000.0,
+            dynamic_height,
+            gravity,
+        )
+    else:
+        eta, u, v = make_initial_vht_perturbation(
+            0.0,
+            dynamic_height / gravity,
+            float(initial["ring_width_km"]) * 1000.0,
+            locations,
+            trigger_times,
+            grid,
+        )
+
     sponge = make_sponge(
         grid,
         float(sponge_config["width_km"]) * 1000.0,
@@ -502,6 +575,21 @@ def run_model(config: Mapping[str, Any], config_directory: str | Path) -> None:
             )
 
         time_s = step * dt
+        model_time_min = time_s / 60.0
+        if mode == "vht" and _is_vht_trigger_time(
+            model_time_min, trigger_times
+        ):
+            eta_add, u_add, v_add = make_initial_vht_perturbation(
+                model_time_min,
+                dynamic_height / gravity,
+                float(initial["ring_width_km"]) * 1000.0,
+                locations,
+                trigger_times,
+                grid,
+            )
+            eta += eta_add
+            u += u_add
+            v += v_add
         if base_update:
             base = update_base_state(initial_base, eta, u, v, grid)
         total_energy = compute_total_energy(

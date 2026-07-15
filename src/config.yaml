@@ -25,9 +25,9 @@ initial_condition:
   mode: "ring" # "ring" or "vht"
   amplitude_factor: 0.001
   ring_width_km: 10.0
-  location_x: 100, 200, 100, 200,
-  location_y: 100, 200, 200, 100,
-  time_to_add:  0,   0,   0,   0,
+  location_x: [100.0, 200.0, 100.0, 200.0] # km
+  location_y: [100.0, 200.0, 200.0, 100.0] # km
+  time_to_add: [0.0, 0.0, 0.0, 0.0]        # model minutes
 
 time:
   time_step_s: 10.0
