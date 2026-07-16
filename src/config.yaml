@@ -15,16 +15,18 @@ physics:
 
 # Balanced Rankine vortex
 vortex:
-  maximum_wind_m_s: 60.0
-  radius_km: 100.0
+  maximum_wind_m_s: 50.0
+  radius_km: 80.0
 
 # Gaussian height ring. Its dynamic-height amplitude is
 # amplitude_factor*maximum_wind_m_s**2 and is converted to metres by g.
 # The full amplitude should be  << V**2/2g at r = R.
 initial_condition:
-  mode: "ring" # "ring" or "vht"
-  amplitude_factor: 0.001
-  ring_width_km: 10.0
+  mode: "ring"                             # "ring" or "vht"
+  amplitude_factor: 0.001                  # RMW-following perturbation amp
+  amplitude_magnetude_m: 0                 # fixed perturbation amp and bypass amplitude_factor if > 0
+  ring_width_km: 10.0                      # width of ring pertrubation 
+  ring_radius_km: 0                        # fixed location radius of perturbation if > 0
   location_x: [100.0, 200.0, 100.0, 200.0] # km
   location_y: [100.0, 200.0, 200.0, 100.0] # km
   time_to_add: [0.0, 0.0, 0.0, 0.0]        # model minutes
@@ -39,7 +41,7 @@ sponge:
 
 diagnostics:
   air_density_kg_m3: 1.0
-  power_radius_km: 180.0
+  power_radius_km: 360.0
   power_circle_points: 720
 
 numerics:
@@ -58,4 +60,4 @@ compute:
 output:
   directory: ../outputs
   snapshot_interval_s: 30.0
-  outname: "power_flux_timeseries_r180"
+  outname: "power_flux_timeseries_r360_coupled"

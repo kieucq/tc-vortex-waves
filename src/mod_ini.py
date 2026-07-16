@@ -17,13 +17,17 @@ def make_initial_ring_perturbation(
     radius: float,
     ring_width: float,
     dynamic_height_amplitude: float,
+    pertubation_amplitude: float,
     gravity: float) -> State:
     """Create a Gaussian free-surface ring with zero initial velocity."""
     if ring_width <= 0.0:
         raise ValueError("Initial-condition ring width must be positive.")
     r = np.sqrt(grid.X**2 + grid.Y**2)
     eta_amplitude = dynamic_height_amplitude / gravity
-    eta = eta_amplitude * np.exp(-((r - radius) ** 2) / (2.0 * ring_width**2))
+    if pertubation_amplitude > 1e-18:
+         eta = pertubation_amplitude*np.exp(-((r - radius) ** 2) / (2.0 * ring_width**2))
+    else:
+         eta = eta_amplitude * np.exp(-((r - radius) ** 2) / (2.0 * ring_width**2))
     return eta, np.zeros_like(eta), np.zeros_like(eta)
 
 

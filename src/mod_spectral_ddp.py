@@ -446,6 +446,10 @@ def _run_torch_model(
     maximum_wind = float(vortex["maximum_wind_m_s"])
     vortex_radius_km = float(vortex["radius_km"])
     vortex_radius = vortex_radius_km * 1000
+    if float(initial["ring_radius_km"]) > 1e-18:
+        ring_radius = float(initial["ring_radius_km"])*1000.0  # fixed location
+    else:
+        ring_radius = vortex_radius                            # following RMW
     dt = float(time_config["time_step_s"])
     end_time = float(time_config["end_time_s"])
     expName = str(output["outname"])
@@ -481,18 +485,20 @@ def _run_torch_model(
         grid_np, maximum_wind, vortex_radius, gravity, mean_depth
     )
     dynamic_height = float(initial["amplitude_factor"]) * maximum_wind**2
+    amplitude_magnetude_m = float(initial["amplitude_magnetude_m"])
     if mode == "ring":
         eta_np, u_np, v_np = make_initial_ring_perturbation(
             grid_np,
-            vortex_radius,
+            ring_radius,
             float(initial["ring_width_km"]) * 1000.0,
             dynamic_height,
+            amplitude_magnetude_m,
             gravity,
         )
     else:
         eta_np, u_np, v_np = make_initial_vht_perturbation(
             0.0,
-            dynamic_height / gravity,
+            amplitude_magnetude_m,
             float(initial["ring_width_km"]) * 1000.0,
             locations,
             trigger_times,
@@ -651,7 +657,7 @@ def _run_torch_model(
     if context.is_root:
         elapsed = time.perf_counter() - start_time
         power_path = output_dir / (
-            f"{expName}_{maximum_wind}_{vortex_radius_km}.csv"
+            f"{expName}_{initial["ring_radius_km"]}_{maximum_wind}_{vortex_radius_km}.csv"
         )
         write_power_timeseries(power_path, power_rows)
         print(f"Elapsed integration time: {elapsed:.2f} s")
