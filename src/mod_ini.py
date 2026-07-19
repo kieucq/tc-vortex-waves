@@ -109,6 +109,72 @@ def make_initial_vht_perturbation(
     return total_eta, total_u, total_v
 
 
+def make_rankine_base_fplane(
+    grid: SpectralGrid,
+    maximum_wind: float,
+    radius: float,
+    gravity: float,
+    mean_depth: float,
+    coriolis_parameter: float,
+    reference_radius: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Construct an f-plane Rankine vortex in gradient-wind balance.
+
+    The returned fields are ``(u, v, h, eta)``. The surface displacement is
+    pinned to zero at ``reference_radius``, which must lie outside the grid.
+    """
+    values = (
+        maximum_wind,
+        radius,
+        gravity,
+        mean_depth,
+        coriolis_parameter,
+        reference_radius,
+    )
+    if not all(np.isfinite(value) for value in values):
+        raise ValueError("F-plane Rankine-vortex parameters must be finite.")
+    if radius <= 0.0 or gravity <= 0.0 or mean_depth <= 0.0:
+        raise ValueError("Vortex radius, gravity, and mean depth must be positive.")
+    corner_radius = 0.5 * np.hypot(grid.length_x, grid.length_y)
+    if reference_radius <= max(radius, corner_radius):
+        raise ValueError(
+            "The f-plane reference radius must exceed the vortex radius and grid corners."
+        )
+
+    radial_distance = np.hypot(grid.X, grid.Y)
+    radius_safe = np.maximum(radial_distance, 1.0e-12)
+    tangential_wind = np.where(
+        radial_distance <= radius,
+        maximum_wind * radial_distance / radius,
+        maximum_wind * radius / radius_safe,
+    )
+    u = -tangential_wind * grid.Y / radius_safe
+    v = tangential_wind * grid.X / radius_safe
+
+    eta_at_radius = (
+        -(maximum_wind**2 * radius**2 / (2.0 * gravity))
+        * (1.0 / radius**2 - 1.0 / reference_radius**2)
+        - (coriolis_parameter * maximum_wind * radius / gravity)
+        * np.log(reference_radius / radius)
+    )
+    eta = np.where(
+        radial_distance <= radius,
+        eta_at_radius
+        + (maximum_wind**2 / (2.0 * gravity))
+        * (radial_distance**2 / radius**2 - 1.0)
+        + (coriolis_parameter * maximum_wind / (2.0 * gravity * radius))
+        * (radial_distance**2 - radius**2),
+        -(maximum_wind**2 * radius**2 / (2.0 * gravity))
+        * (1.0 / radius_safe**2 - 1.0 / reference_radius**2)
+        - (coriolis_parameter * maximum_wind * radius / gravity)
+        * np.log(reference_radius / radius_safe),
+    )
+    h = mean_depth + eta
+    if np.any(h <= 0.0):
+        raise ValueError("The balanced f-plane base state has non-positive depth.")
+    return u, v, h, eta
+
+
 def make_rankine_base(
     grid: SpectralGrid,
     maximum_wind: float,

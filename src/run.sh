@@ -20,7 +20,8 @@ MODEL_SCRIPT="$SCRIPT_DIR/tc_gravity_waves.py"
 
 ddp="no"
 maximum_wind_values=(30 40 50 60)
-radius_values=(30 40 50 60 70 80 90 100)
+#radius_values=(30 40 50 60 70 80 90 100)
+radius_values=(40 50 60)
 
 for maximum_wind in "${maximum_wind_values[@]}"; do
     for radius_km in "${radius_values[@]}"; do

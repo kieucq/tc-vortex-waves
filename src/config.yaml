@@ -16,17 +16,17 @@ physics:
 # Balanced Rankine vortex
 vortex:
   maximum_wind_m_s: 50.0
-  radius_km: 80.0
+  radius_km: 50.0
 
 # Gaussian height ring. Its dynamic-height amplitude is
 # amplitude_factor*maximum_wind_m_s**2 and is converted to metres by g.
 # The full amplitude should be  << V**2/2g at r = R.
 initial_condition:
   mode: "ring"                             # "ring" or "vht"
-  amplitude_factor: 0.001                  # RMW-following perturbation amp
-  amplitude_magnetude_m: 0                 # fixed perturbation amp and bypass amplitude_factor if > 0
-  ring_width_km: 10.0                      # width of ring pertrubation 
-  ring_radius_km: 0                        # fixed location radius of perturbation if > 0
+  amplitude_factor: 0.000                  # RMW-following perturbation amp
+  amplitude_magnetude_m: 0.25              # fixed perturbation amp and bypass amplitude_factor if > 0
+  ring_width_km: 10.0                      # width of ring pertrubation
+  ring_radius_km: 60                       # fixed location radius of perturbation if > 0
   location_x: [100.0, 200.0, 100.0, 200.0] # km
   location_y: [100.0, 200.0, 200.0, 100.0] # km
   time_to_add: [0.0, 0.0, 0.0, 0.0]        # model minutes
@@ -41,12 +41,19 @@ sponge:
 
 diagnostics:
   air_density_kg_m3: 1.0
-  power_radius_km: 360.0
+  power_radius_km: 180.0
   power_circle_points: 720
 
 numerics:
   spectral_filter_enabled: true
   spectral_filter_fraction: 0.67
+
+# Full nonlinear f-plane SWE solver (swe_spectral.py)
+full_swe:
+  coriolis_parameter_s_1: 0.0e-5
+  reference_radius_factor: 1.05    # relative to the grid-corner radius
+  minimum_depth_m: 1.0
+  power_filename: swe_power_flux_timeseries.csv
 
 # Execution backend. Command-line options can override these values.
 compute:
@@ -55,9 +62,9 @@ compute:
   dtype: float64              # float32 is faster on most GPUs
   distributed: false          # true when launching with torchrun
 
-# Relative paths are resolved from this configuration file and set 
+# Relative paths are resolved from this configuration file and set
 # output filename for each experiment.
 output:
   directory: ../outputs
   snapshot_interval_s: 30.0
-  outname: "power_flux_timeseries_r360_coupled"
+  outname: "power_flux_timeseries_r180_outer3"
