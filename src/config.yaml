@@ -33,7 +33,7 @@ initial_condition:
 
 time:
   time_step_s: 10.0
-  end_time_s: 7200.0      # 2 hours
+  end_time_s: 21600.0      # 6 hours
 
 sponge:
   width_km: 250.0
