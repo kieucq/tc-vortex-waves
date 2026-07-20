@@ -221,3 +221,148 @@ def make_rankine_base(
     v_x[outside] = scale * (Y[outside]**2 - X[outside]**2) / r4[outside]
     v_y[outside] = -2.0 * scale * X[outside] * Y[outside] / r4[outside]
     return RankineBaseState(u, v, h, eta, u_x, u_y, v_x, v_y)
+
+def make_base_fplane(
+    grid: SpectralGrid,
+    maximum_wind: float,
+    radius: float,
+    gravity: float,
+    mean_depth: float,
+    coriolis_parameter: float,
+    reference_radius: float | None = None,
+    profile: str = "rankine",
+    smooth_kind: str = "gaussian",
+    alpha: float = 1.0,
+    nr: int = 4096,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Construct an axisymmetric f-plane base state in gradient-wind balance.
+
+    Parameters
+    ----------
+    grid
+        Cartesian spectral grid whose coordinates are in metres.
+    maximum_wind
+        Tangential-wind scale in metres per second.
+    radius
+        Vortex radius in metres.
+    gravity
+        Gravitational acceleration in metres per second squared.
+    mean_depth
+        Undisturbed layer depth in metres.
+    coriolis_parameter
+        Constant f-plane Coriolis parameter in inverse seconds.
+    reference_radius
+        Radius where the surface anomaly is zero. When omitted, a value five
+        percent beyond both the grid and vortex radius is used.
+    profile : {"rankine", "smooth"}
+        Tangential wind profile.
+    smooth_kind : {"gaussian", "exp", "rational"}
+        Only used if profile="smooth".
+    alpha
+        Power-law decay exponent outside the Rankine vortex radius.
+    nr : int
+        Number of radial points used for the numerical integration.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        Base-state velocity components, total depth, and free-surface anomaly.
+    """
+    numeric_values = (
+        maximum_wind,
+        radius,
+        gravity,
+        mean_depth,
+        coriolis_parameter,
+        alpha,
+    )
+    if not all(np.isfinite(value) for value in numeric_values):
+        raise ValueError("F-plane base-state parameters must be finite.")
+    if maximum_wind < 0.0:
+        raise ValueError("maximum_wind must be non-negative.")
+    if radius <= 0.0 or gravity <= 0.0 or mean_depth <= 0.0:
+        raise ValueError("radius, gravity, and mean_depth must be positive.")
+    if alpha <= 0.0:
+        raise ValueError("alpha must be positive.")
+    if isinstance(nr, bool) or not isinstance(nr, (int, np.integer)):
+        raise TypeError("nr must be an integer.")
+    if nr < 2:
+        raise ValueError("nr must be at least two.")
+
+    profile_name = str(profile).strip().lower()
+    smooth_name = str(smooth_kind).strip().lower()
+    if profile_name not in {"rankine", "smooth"}:
+        raise ValueError("profile must be either 'rankine' or 'smooth'.")
+    if profile_name == "smooth" and smooth_name not in {
+        "gaussian",
+        "exp",
+        "rational",
+    }:
+        raise ValueError(
+            "smooth_kind must be one of 'gaussian', 'exp', or 'rational'."
+        )
+
+    X, Y = grid.X, grid.Y
+    radial_distance = np.hypot(X, Y)
+    radius_safe = np.maximum(radial_distance, 1.0e-12)
+    maximum_grid_radius = float(np.max(radial_distance))
+    if reference_radius is None:
+        reference_radius = 1.05 * max(maximum_grid_radius, radius)
+    elif not np.isfinite(reference_radius):
+        raise ValueError("reference_radius must be finite when provided.")
+    if reference_radius <= max(maximum_grid_radius, radius):
+        raise ValueError(
+            "reference_radius must exceed both the vortex radius and every "
+            "grid-point radius."
+        )
+
+    def rankine_wind(radial_coordinate: np.ndarray) -> np.ndarray:
+        tangential_wind = np.empty_like(radial_coordinate, dtype=float)
+        inside = radial_coordinate <= radius
+        tangential_wind[inside] = maximum_wind * radial_coordinate[inside] / radius
+        tangential_wind[~inside] = maximum_wind * (
+            radius / radial_coordinate[~inside]
+        ) ** alpha
+        return tangential_wind
+
+    def smooth_wind(radial_coordinate: np.ndarray) -> np.ndarray:
+        scaled_radius = radial_coordinate / radius
+        if smooth_name == "gaussian":
+            return maximum_wind * scaled_radius * np.exp(1.0 - scaled_radius**2)
+        if smooth_name == "exp":
+            return maximum_wind * scaled_radius * np.exp(-(scaled_radius**2))
+        return 2.0 * maximum_wind * scaled_radius / (1.0 + scaled_radius**2)
+
+    wind_profile = rankine_wind if profile_name == "rankine" else smooth_wind
+    tangential_wind = wind_profile(radial_distance)
+    radial_grid = np.linspace(0.0, reference_radius, int(nr), dtype=float)
+    radial_wind = wind_profile(radial_grid)
+
+    balance_integrand = (
+        radial_wind**2 / np.maximum(radial_grid, 1.0e-12)
+        + coriolis_parameter * radial_wind
+    ) / gravity
+    segment_integrals = 0.5 * (
+        balance_integrand[:-1] + balance_integrand[1:]
+    ) * np.diff(radial_grid)
+    radial_eta = np.zeros_like(radial_grid)
+    radial_eta[:-1] = -np.cumsum(segment_integrals[::-1])[::-1]
+    eta_base = np.interp(
+        radial_distance.ravel(),
+        radial_grid,
+        radial_eta,
+        left=radial_eta[0],
+        right=0.0,
+    ).reshape(radial_distance.shape)
+
+    h_base = mean_depth + eta_base
+    if np.any(h_base <= 0.0):
+        raise ValueError("The balanced f-plane base state has non-positive depth.")
+
+    u_base = -tangential_wind * Y / radius_safe
+    v_base = tangential_wind * X / radius_safe
+    origin = radial_distance < 1.0e-12
+    u_base[origin] = 0.0
+    v_base[origin] = 0.0
+
+    return u_base, v_base, h_base, eta_base

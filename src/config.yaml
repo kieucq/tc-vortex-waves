@@ -23,6 +23,10 @@ vortex:
 # The full amplitude should be  << V**2/2g at r = R.
 initial_condition:
   mode: "ring"                             # "ring" or "vht"
+  profile: "rankine"                       # "rankine" or "smooth"
+  smooth_kind: "gaussian"                  # "gaussian", "exp", or "rational"
+  alpha: 1.0                                # outer-wind decay exponent for Rankine
+  nr: 4096                                  # radial points for balance integration
   amplitude_factor: 0.000                  # RMW-following perturbation amp
   amplitude_magnetude_m: 0.25              # fixed perturbation amp and bypass amplitude_factor if > 0
   ring_width_km: 10.0                      # width of ring pertrubation
@@ -51,7 +55,7 @@ numerics:
 # Full nonlinear f-plane SWE solver (swe_spectral.py)
 full_swe:
   coriolis_parameter_s_1: 0.0e-5
-  reference_radius_factor: 1.05    # relative to the grid-corner radius
+  reference_radius_factor: 1.01    # relative to the grid-corner radius
   minimum_depth_m: 1.0
   power_filename: swe_power_flux_timeseries.csv
 

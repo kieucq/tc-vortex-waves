@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping
 import numpy as np
 from mod_bnd import make_sponge
-from mod_ini import make_initial_ring_perturbation, make_rankine_base_fplane
+from mod_ini import make_base_fplane, make_initial_ring_perturbation
 from mod_spectral import (
     SpectralGrid,
     apply_spectral_filter,
@@ -179,7 +179,7 @@ def run_full_swe(
 
     corner_radius = 0.5 * np.hypot(grid.length_x, grid.length_y)
     reference_radius = reference_radius_factor * corner_radius
-    u_base, v_base, h_base, _ = make_rankine_base_fplane(
+    u_base, v_base, h_base, _ = make_base_fplane(
         grid,
         maximum_wind,
         vortex_radius,
@@ -187,6 +187,10 @@ def run_full_swe(
         mean_depth,
         coriolis_parameter,
         reference_radius,
+        profile=str(initial["profile"]),
+        smooth_kind=str(initial["smooth_kind"]),
+        alpha=float(initial["alpha"]),
+        nr=initial["nr"],
     )
     eta_initial, u_initial, v_initial = make_initial_ring_perturbation(
         grid,
